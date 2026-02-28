@@ -87,6 +87,12 @@ public class MovementAgent : MonoBehaviour
     /// </summary>
     public event System.Action OnDestinationReached;
 
+    /// <summary>
+    /// Velocidad de movimiento. PlayerMovement la usa para el ajuste
+    /// directo de last mile con la misma velocidad del agente.
+    /// </summary>
+    public float MoveSpeed => moveSpeed;
+
     // ────────────────────────────────────────────────────────────────────
     // Unity Lifecycle
     // ────────────────────────────────────────────────────────────────────
@@ -120,7 +126,7 @@ public class MovementAgent : MonoBehaviour
     public void SetDestination(Vector2 destination)
     {
         List<Vector2> newPath = AStarPathfinder.Instance.FindPath(transform.position, destination);
-
+        Debug.Log($"FindPath retornó {newPath.Count} waypoints hacia {destination}");
         // Si no hay camino posible, no hacer nada
         if (newPath.Count == 0)
         {
@@ -130,6 +136,7 @@ public class MovementAgent : MonoBehaviour
 
         // Aplicar suavizado para eliminar waypoints redundantes
         _path = AStarPathfinder.Instance.SmoothPath(newPath, obstacleMask);
+        Debug.Log($"SmoothPath redujo a {_path.Count} waypoints");
         _path[0] = (Vector2)transform.position;
         if (AStarPathfinder.Instance.IsPositionWalkable(destination))
             _path[_path.Count - 1] = destination;
@@ -163,6 +170,15 @@ public class MovementAgent : MonoBehaviour
     {
         Vector2 currentPos = transform.position;
         Vector2 targetWaypoint = _path[_currentWaypointIndex];
+
+        // DEBUG: dibujar el camino completo en la Scene view
+        for (int i = _currentWaypointIndex; i < _path.Count - 1; i++)
+            Debug.DrawLine(
+                new Vector3(_path[i].x, _path[i].y, 0),
+                new Vector3(_path[i + 1].x, _path[i + 1].y, 0),
+                Color.yellow,
+                10f
+            );
 
         // Calcular dirección y actualizar visuals antes de moverse
         _moveDirection = (targetWaypoint - currentPos).normalized;

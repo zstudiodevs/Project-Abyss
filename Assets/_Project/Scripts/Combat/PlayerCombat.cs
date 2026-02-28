@@ -130,6 +130,8 @@ public class PlayerCombat : MonoBehaviour
 
         AttackHitbox hitbox = Instantiate(_attackHitboxPrefab, hitboxPosition, Quaternion.identity);
         hitbox.Initialize(_primaryDamage, _primaryRadius, _enemyLayer);
+
+        Debug.Log($"PlayerCombat: Ataque primario ejecutado contra {hitboxPosition} con daño {_primaryDamage}.");
     }
 
     // -------------------------------------------------------------------------

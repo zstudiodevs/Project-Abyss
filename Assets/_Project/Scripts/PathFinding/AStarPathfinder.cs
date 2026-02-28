@@ -61,6 +61,9 @@ public class AStarPathfinder : MonoBehaviour
         Node startNode = PathfindingGrid.Instance.NodeFromWorldPoint(startPos);
         Node targetNode = PathfindingGrid.Instance.NodeFromWorldPoint(targetPos);
 
+        Debug.Log($"StartNode: GridX={startNode.GridX}, GridY={startNode.GridY}, Walkable={startNode.Walkable}");
+        Debug.Log($"TargetNode: GridX={targetNode.GridX}, GridY={targetNode.GridY}, Walkable={targetNode.Walkable}");
+
         if (!targetNode.Walkable)
             targetNode = GetNearestWalkableNode(targetNode);
 
@@ -207,6 +210,11 @@ public class AStarPathfinder : MonoBehaviour
         // El camino está construido de destino a origen, hay que invertirlo
         path.Reverse();
 
+        string pathStr = "";
+        foreach (var p in path)
+            pathStr += $"({p.x:F2},{p.y:F2}) → ";
+        Debug.Log($"Camino calculado: {pathStr}");
+
         return path;
     }
 
@@ -232,14 +240,22 @@ public class AStarPathfinder : MonoBehaviour
         {
             int next = current + 1;
 
-            // Intentar saltar waypoints intermedios mientras haya line-of-sight
             while (next + 1 < path.Count)
             {
-                bool hasLineOfSight = !Physics2D.Linecast(
-                    path[current],
-                    path[next + 1],
+                Vector2 origin = path[current];
+                Vector2 target = path[next + 1];
+                Vector2 direction = (target - origin).normalized;
+                float distance = Vector2.Distance(origin, target);
+
+                RaycastHit2D hit = Physics2D.CircleCast(
+                    origin,
+                    0.4f,       // radio levemente menor al nodeRadius (0.5)
+                    direction,
+                    distance,
                     obstacleMask
                 );
+
+                bool hasLineOfSight = hit.collider == null;
 
                 if (hasLineOfSight)
                     next++;

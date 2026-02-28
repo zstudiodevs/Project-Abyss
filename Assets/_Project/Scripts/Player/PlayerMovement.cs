@@ -83,10 +83,6 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     private bool _pendingAreaAttack;
 
-    // ─── Habilidades de movimiento ────────────────────────────────────────
-
-    private bool _pendingDash;
-
     // ─── Propiedades Públicas ─────────────────────────────────────────────
 
     /// <summary>
@@ -114,10 +110,10 @@ public class PlayerMovement : MonoBehaviour
     public bool PendingAreaAttack => _pendingAreaAttack;
 
     /// <summary>
-    /// Indica que el jugador presionó Space este frame.
-    /// DashController lo consume.
+    /// True mientras el jugador ejecuta el ajuste final de last mile hacia el target.
+    /// Suspende UpdateChase para evitar que sobreescriba el destino ajustado.
     /// </summary>
-    public bool PendingDash => _pendingDash;
+    private bool _isAdjusting;
 
     // ────────────────────────────────────────────────────────────────────
     // Unity Lifecycle
@@ -129,6 +125,12 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         _agent = GetComponent<MovementAgent>();
+        _agent.OnDestinationReached += HandleDestinationReached;
+    }
+
+    private void OnDestroy()
+    {
+        _agent.OnDestinationReached -= HandleDestinationReached;
     }
 
     /// <summary>
@@ -143,9 +145,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Resetear los flags de ataque y dash al final del frame para que solo duren un frame.
+        // Resetear los flags de ataque al final del frame para que solo duren un frame.
         _pendingAreaAttack = false;
-        _pendingDash = false;
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -189,11 +190,6 @@ public class PlayerMovement : MonoBehaviour
             // al cursor para ejecutar el ataque sin mover al agente.
             _pendingAreaAttack = rightClickDown;
             return;
-        }
-
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            _pendingDash = true;
         }
 
         if (leftClickDown)
@@ -300,6 +296,7 @@ public class PlayerMovement : MonoBehaviour
         _isChasingEnemy = false;
         _pendingAreaAttack = false;
         IsInAttackRange = false;
+        _isAdjusting = false;
     }
 
     /// <summary>
@@ -321,6 +318,8 @@ public class PlayerMovement : MonoBehaviour
     private void UpdateChase()
     {
         if (!_isChasingEnemy || _currentTarget == null)
+            return;
+        if (_isAdjusting)
             return;
 
         float distanceToTarget = Vector2.Distance(transform.position, _currentTarget.position);
@@ -346,6 +345,75 @@ public class PlayerMovement : MonoBehaviour
         {
             _lastTargetPosition = _currentTarget.position;
             _agent.SetDestination(_currentTarget.position);
+            CurrentDestination = _currentTarget.position;
         }
+    }
+
+    /// <summary>
+    /// Callback que se ejecuta cuando el MovementAgent completa el camino.
+    /// Si hay un target activo y el jugador no está en rango, busca un punto
+    /// walkable dentro del attackRange y usa pathfinding para llegar ahí.
+    /// Nunca mueve directamente para respetar obstáculos.
+    /// </summary>
+    private void HandleDestinationReached()
+    {
+        if (_currentTarget == null || !_isChasingEnemy) return;
+
+        float distance = Vector2.Distance(transform.position, _currentTarget.position);
+
+        if (distance <= attackRange)
+        {
+            _isAdjusting = false;
+            IsInAttackRange = true;
+            _agent.StopMovement();
+            return;
+        }
+
+        // Solo intentar ajuste si no estamos ya ajustando
+        if (!_isAdjusting)
+        {
+            Vector2 adjustedDestination = FindWalkablePositionInRange(_currentTarget.position);
+            if (adjustedDestination != Vector2.zero)
+            {
+                _isAdjusting = true;
+                _agent.SetDestination(adjustedDestination);
+                CurrentDestination = adjustedDestination;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Busca el punto walkable más cercano al jugador dentro del attackRange
+    /// del target. Samplea 8 puntos en círculo a attackRange * 0.85 de distancia
+    /// del target para asegurar que el punto está dentro del rango de ataque.
+    /// </summary>
+    /// <param name="targetPos">Posición del target.</param>
+    /// <returns>
+    /// El punto walkable más cercano al jugador dentro del rango,
+    /// o Vector2.zero si no hay ninguno disponible.
+    /// </returns>
+    private Vector2 FindWalkablePositionInRange(Vector2 targetPos)
+    {
+        float sampleRadius = attackRange * 0.85f;
+        int sampleCount = 8;
+        Vector2 bestPosition = Vector2.zero;
+        float bestDistance = float.MaxValue;
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float angle = i * (360f / sampleCount) * Mathf.Deg2Rad;
+            Vector2 candidate = targetPos + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * sampleRadius;
+
+            if (!AStarPathfinder.Instance.IsPositionWalkable(candidate)) continue;
+
+            float distToPlayer = Vector2.Distance(transform.position, candidate);
+            if (distToPlayer < bestDistance)
+            {
+                bestDistance = distToPlayer;
+                bestPosition = candidate;
+            }
+        }
+
+        return bestPosition;
     }
 }
