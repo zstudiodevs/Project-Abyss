@@ -135,7 +135,7 @@ public class PathfindingGrid : MonoBehaviour
                     + Vector2.up * (y * _nodeDiameter + nodeRadius);
 
                 // Un nodo es transitable si no hay ningún obstáculo en su área
-                bool walkable = Physics2D.OverlapCircle(worldPoint, nodeRadius, obstacleMask) == null;
+                bool walkable = Physics2D.OverlapCircle(worldPoint, nodeRadius * 0.9f, obstacleMask) == null;
 
                 _grid[x, y] = new Node(walkable, worldPoint, x, y);
             }
